@@ -33,6 +33,7 @@ namespace
     const int cannyThresholdInitialValue = 54;
     const int accumulatorThresholdInitialValue = 28;
     const int radiusThresholdInitialValue = 32;
+    const int heightInitialValue = 20;
     const int maxAccumulatorThreshold = 200;
     const int maxCannyThreshold = 255;
     const int maxRadiusThreshold = 100;
@@ -42,6 +43,7 @@ namespace
     int cannyThreshold = cannyThresholdInitialValue;
     int accumulatorThreshold = accumulatorThresholdInitialValue;
     int radiusThreshold = radiusThresholdInitialValue;
+    int height = heightInitialValue;
 
     // calibratioin matrix
     MatrixXd m(4,3);
@@ -108,12 +110,13 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
           // circle outline
           circle( display, center, radius, Scalar(0,0,255), 3, 8, 0 );
           // find the 3d position 
+          w = (double)height / 100.0;
           v(0) = cvRound(circles[i][0])*w;
           v(1) = cvRound(circles[i][1])*w;
+          v(2) = w;
           VectorXd p = m * v;
           publishMarker(p(0), p(1), p(2));
-          //publishTF(p(0), p(1), p(2));
-          break;
+          publishTF(p(0), p(1), p(2));
         }
     }
 
@@ -191,20 +194,13 @@ int main(int argc, char** argv)
     createTrackbar(cannyThresholdTrackbarName, windowName, &cannyThreshold,maxCannyThreshold);
     createTrackbar(accumulatorThresholdTrackbarName, windowName, &accumulatorThreshold, maxAccumulatorThreshold);
     createTrackbar(radiusThresholdTrackbarName, windowName, &radiusThreshold, maxRadiusThreshold);
+    createTrackbar("Camera Height", windowName, &height, 100);
 
     // subscribe to the image topic
-    //ros::Subscriber sub = nh.subscribe("/cameras/left_hand_camera/image", 1, imageCallback);
+    ros::Subscriber sub = nh.subscribe("/cameras/left_hand_camera/image", 1, imageCallback);
 
     // marker publisher
     vis_pub = nh.advertise<visualization_msgs::Marker>( "detected_circles", 0 );
-
-    ros::Rate loop_rate(50);
-    while (ros::ok()){
-        publishTF(0.0, 0.0,0.2);
-
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
 
     
 
