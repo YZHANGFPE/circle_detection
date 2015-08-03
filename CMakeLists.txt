@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   tf
+  cv_bridge
 )
 
 ## System dependencies are found with CMake's conventions
@@ -121,7 +122,7 @@ add_executable(circle_detection_node src/circle_detection_node.cpp)
 #   ${catkin_LIBRARIES}
 # )
 
-target_link_libraries( circle_detection_node ${OpenCV_LIBS} )
+target_link_libraries( circle_detection_node ${OpenCV_LIBS} ${catkin_LIBRARIES} )
 
 #############
 ## Install ##
