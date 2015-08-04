@@ -4,13 +4,17 @@ import tf
 import numpy
 import moveit_commander
 import moveit_msgs.msg
-
+import sys
 from geometry_msgs.msg import Pose, Point, Quaternion
 
 if __name__ == '__main__':
+    moveit_commander.roscpp_initialize(sys.argv)
     rospy.init_node('pick_up_lime')
 
     tf_listener = tf.TransformListener()
+
+    robot = moveit_commander.RobotCommander()
+    scene = moveit_commander.PlanningSceneInterface()
 
     group = moveit_commander.MoveGroupCommander("left_arm")
     group.set_planner_id('RRTConnectkConfigDefault')
@@ -39,7 +43,6 @@ if __name__ == '__main__':
     rospy.loginfo(trans)
 
     # move to the position that is above the lime
-
     above_pose = Pose()
     above_pose.orientation.y = 1.0
     above_pose.position.x = trans[0]
@@ -63,25 +66,31 @@ if __name__ == '__main__':
     # group.set_start_state(state)
 
     # set the orientation constraint during the approach
+
+    above_pose = group.get_current_pose()
+
+    pick_pose = Pose()
+    pick_pose.orientation = above_pose.pose.orientation
+    pick_pose.position.x = trans[0]
+    pick_pose.position.y = trans[1]
+    pick_pose.position.z = -0.04
+
+    group.set_pose_target(pick_pose)
+
     constraints = moveit_commander.Constraints()
     constraints.name = "hold rotations"
     ocm = moveit_msgs.msg.OrientationConstraint()
     ocm.link_name = "left_hand"
     ocm.header.frame_id = "base"
-    ocm.orientation = above_pose.orientation
-    ocm.absolute_x_axis_tolerance = 100
-    ocm.absolute_y_axis_tolerance = 100
-    ocm.absolute_z_axis_tolerance = 100
+    ocm.orientation = pick_pose.orientation
+    ocm.absolute_x_axis_tolerance = 0.1
+    ocm.absolute_y_axis_tolerance = 0.1
+    ocm.absolute_z_axis_tolerance = 0.1
     ocm.weight = 1.0
-
+    
     constraints.orientation_constraints.append(ocm)
+    group.clear_path_constraints()
 
     group.set_path_constraints(constraints)
 
-    pick_pose = Pose()
-    pick_pose.orientation.y = 1.0
-    pick_pose.position.x = trans[0]
-    pick_pose.position.y = trans[1]
-    pick_pose.position.z = -0.08
-    group.set_pose_target(pick_pose)
     group.plan()
