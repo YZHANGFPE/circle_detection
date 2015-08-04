@@ -32,8 +32,8 @@ namespace
     // initial and max values of the parameters of interests.
     const int cannyThresholdInitialValue = 54;
     const int accumulatorThresholdInitialValue = 28;
-    const int radiusThresholdInitialValue = 32;
-    const int heightInitialValue = 20;
+    const int radiusThresholdInitialValue = 38;
+    const int heightInitialValue = 34;
     const int maxAccumulatorThreshold = 200;
     const int maxCannyThreshold = 255;
     const int maxRadiusThreshold = 100;
