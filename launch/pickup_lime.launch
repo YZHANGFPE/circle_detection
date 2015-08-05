@@ -1,0 +1,5 @@
+<launch>
+	<node name="pick_up_lime" pkg="circle_detection" type="pick_up_lime.py" output = "screen">
+		<remap from="/joint_states" to="/robot/joint_states" />
+	</node>
+</launch>
