@@ -30,13 +30,14 @@ namespace
     const std::string usage = "Usage : tutorial_HoughCircle_Demo <path_to_input_image>\n";
 
     // initial and max values of the parameters of interests.
-    const int cannyThresholdInitialValue = 54;
-    const int accumulatorThresholdInitialValue = 28;
+    const int cannyThresholdInitialValue = 50;
+    const int accumulatorThresholdInitialValue = 41;
     const int radiusThresholdInitialValue = 38;
-    const int heightInitialValue = 34;
+    const int heightInitialValue = 33;
     const int maxAccumulatorThreshold = 200;
     const int maxCannyThreshold = 255;
     const int maxRadiusThreshold = 100;
+    const int minRadiusThreshold = 20;
 
 
     // declare and initialize both parameters that are subjects to change
@@ -100,25 +101,49 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
 
     // clone the colour, input image for displaying purposes
     Mat display = src_display.clone();
+
+    int x_min = 1000;
+    int y_min = 1000;
+    int d_min = 2000;
+
     for( size_t i = 0; i < circles.size(); i++ )
     {
         Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
         int radius = cvRound(circles[i][2]);
-        if (radius < radiusThreshold){
+        
+        if (radius < radiusThreshold  && radius > radiusThreshold-8){
           // circle center
           circle( display, center, 3, Scalar(0,255,0), -1, 8, 0 );
           // circle outline
           circle( display, center, radius, Scalar(0,0,255), 3, 8, 0 );
-          // find the 3d position 
-          w = (double)height / 100.0;
-          v(0) = cvRound(circles[i][0])*w;
-          v(1) = cvRound(circles[i][1])*w;
-          v(2) = w;
-          VectorXd p = m * v;
-          publishMarker(p(0), p(1), p(2));
-          publishTF(p(0), p(1), p(2));
+          // update the pick candidate with the min distance circle
+          int d = abs(circles[i][0] - 320) + abs(circles[i][1] - 200);
+          if( d < d_min){
+            d_min = d;
+            x_min = circles[i][0];
+            y_min = circles[i][1];
+          }
+          
         }
     }
+
+    // find the 3d position for the pick candidate
+    
+    if( d_min < 2000){
+      w = (double)height / 100.0;
+      v(0) = cvRound(x_min)*w;
+      v(1) = cvRound(y_min)*w;
+      v(2) = w;
+      VectorXd p = m * v;
+      //publishMarker(p(0), p(1), p(2));
+      circle( display, Point(x_min , y_min), 38, Scalar(255,0,0), 3, 8, 0 );
+      // offset ajustment for the distance between gripper center and camera center
+      double offset = 0.01;
+      publishTF(p(0) - offset , p(1), p(2));
+    }
+
+    // display the center of the image
+    // circle( display, Point(320, 200), 3, Scalar(255,0,0), -1, 8, 0 );
 
     // shows the results
     imshow( windowName, display);
