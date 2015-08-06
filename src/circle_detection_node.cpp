@@ -30,7 +30,7 @@ namespace
     const std::string usage = "Usage : tutorial_HoughCircle_Demo <path_to_input_image>\n";
 
     // initial and max values of the parameters of interests.
-    const int cannyThresholdInitialValue = 50;
+    const int cannyThresholdInitialValue = 90;
     const int accumulatorThresholdInitialValue = 41;
     const int radiusThresholdInitialValue = 38;
     const int heightInitialValue = 33;
@@ -86,7 +86,7 @@ namespace
       tf::Quaternion q;
       q.setRPY(0, 0, 0);
       transform.setRotation(q);
-      br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "left_hand_camera", "circle"));
+      br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "right_hand_camera", "circle"));
     }
     
 
@@ -138,8 +138,10 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
       //publishMarker(p(0), p(1), p(2));
       circle( display, Point(x_min , y_min), 38, Scalar(255,0,0), 3, 8, 0 );
       // offset ajustment for the distance between gripper center and camera center
-      double offset = 0.01;
-      publishTF(p(0) - offset , p(1), p(2));
+      double left_offset = 0.01;
+      double right_offset = 0.03;
+      // publishTF(p(0) - left_offset , p(1), p(2));
+      publishTF(p(0) - right_offset, p(1), p(2));
     }
 
     // display the center of the image
@@ -222,7 +224,7 @@ int main(int argc, char** argv)
     createTrackbar("Camera Height", windowName, &height, 100);
 
     // subscribe to the image topic
-    ros::Subscriber sub = nh.subscribe("/cameras/left_hand_camera/image", 1, imageCallback);
+    ros::Subscriber sub = nh.subscribe("/cameras/right_hand_camera/image", 1, imageCallback);
 
     // marker publisher
     vis_pub = nh.advertise<visualization_msgs::Marker>( "detected_circles", 0 );
