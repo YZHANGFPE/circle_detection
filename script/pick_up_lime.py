@@ -7,6 +7,59 @@ import moveit_msgs.msg
 import sys
 from geometry_msgs.msg import Pose, Point, Quaternion
 from baxter_interface import Gripper
+from itertools import izip
+
+def plan_validate(plan):        
+    points = plan.joint_trajectory.points
+    if len(points) == 0: return False        
+
+    score = max(sum((x1 - x0)**2 for x0, x1 in izip(point0.positions, point1.positions)) 
+                                 for point0, point1 in izip(points[:-1], points[1:]))
+
+    rospy.loginfo('Plan scored %s for discontinuity' % score)
+    return False if score > 1 else True
+
+def plan_with_orientation_lock(group, target_pose, side = "left"):
+
+    current_pose = group.get_current_pose()
+    constraints = moveit_commander.Constraints()
+    constraints.name = "hold rotations"
+    ocm = moveit_msgs.msg.OrientationConstraint()
+    if side == "left":
+        ocm.link_name = "left_hand"
+    else:
+        ocm.link_name = "right_hand"
+
+    ocm.header.frame_id = "base"
+    ocm.orientation = current_pose.pose.orientation
+    ocm.absolute_x_axis_tolerance = 0.2
+    ocm.absolute_y_axis_tolerance = 0.2
+    ocm.absolute_z_axis_tolerance = 0.2
+    ocm.weight = 1.0
+    
+    constraints.orientation_constraints.append(ocm)
+    group.clear_path_constraints()
+
+    group.set_path_constraints(constraints)
+
+    group.set_pose_target(target_pose)
+    plan_valid = False
+    while not rospy.is_shutdown() and not plan_valid:
+        plan = group.plan()
+        plan_valid = plan_validate(plan)
+        print plan_valid
+    group.clear_path_constraints()
+    return plan
+
+def execute_valid_plan(group, target_pose):
+    plan_valid = False
+    group.set_pose_target(target_pose)
+    while not rospy.is_shutdown() and not plan_valid:
+        plan = group.plan()
+        plan_valid = plan_validate(plan)
+        print plan_valid
+    group.execute(plan)
+
 
 if __name__ == '__main__':
     moveit_commander.roscpp_initialize(sys.argv)
@@ -16,60 +69,38 @@ if __name__ == '__main__':
 
     robot = moveit_commander.RobotCommander()
     scene = moveit_commander.PlanningSceneInterface()
-    gripper = Gripper("left")
-    gripper.calibrate()
-    rospy.sleep(3)
+    gripper_left = Gripper("left")
+    gripper_left.calibrate()
+    gripper_right = Gripper("right")
+    gripper_right.calibrate()
+    rospy.sleep(2)
 
-    group = moveit_commander.MoveGroupCommander("left_arm")
-    group.set_planner_id('RRTConnectkConfigDefault')
+    group_left = moveit_commander.MoveGroupCommander("left_arm")
+    group_right = moveit_commander.MoveGroupCommander("right_arm")
+    group_left.set_planner_id('RRTConnectkConfigDefault')
+    group_right.set_planner_id('RRTConnectkConfigDefault')
 
     # parameters
     no_detection = True
-    drop_lemon = False
-    press_faucet = False
+    drop_lemon = True
+    press_faucet = True
+    place_cup = True
     gripper_position_threshold = 4.3
 
     # clean the scene
     scene.remove_world_object()
     
 
-    gripper.close()
-    rospy.sleep(1)
-    # pose1 = group.get_current_pose()
-    # pose1.pose.position.z += 0.30
-    # group.set_pose_target(pose1)
-    # group.plan()
-
-    # pose1 = group.get_current_pose()
-    # pose1.pose.position.z -= 0.30
-    # group.set_pose_target(pose1)
-    # group.plan()
-
-    pose1 = group.get_current_pose()
-    pose1.pose.position.x += 0.10
-    group.set_pose_target(pose1)
-    group.go()
-
-    gripper.open()
-    rospy.sleep(1)
-
-    pose2 = group.get_current_pose()
-    pose2.pose.position.x -= 0.10
-    group.set_pose_target(pose2)
-    group.go()
-
-
     while not no_detection:
 
         # initial pose
         initial_pose = Pose()
         initial_pose.orientation.y = 1.0
-        initial_pose.position.x = 0.6
-        initial_pose.position.y = 0.48
+        initial_pose.position.x = 0.5
+        initial_pose.position.y = -0.68
         initial_pose.position.z = 0.144
 
-        group.set_pose_target(initial_pose)
-        group.go()
+        execute_valid_plan(group_right, initial_pose)
 
         rospy.loginfo("Time to kill the process")
 
@@ -113,12 +144,11 @@ if __name__ == '__main__':
             above_pose.position.x = trans[0]
             above_pose.position.y = trans[1]
             above_pose.position.z = 0.144
-            group.set_pose_target(above_pose)
-            group.go()
+            execute_valid_plan(group_right, above_pose)
 
             # set the orientation constraint during the approach
 
-            above_pose = group.get_current_pose()
+            above_pose = group_right.get_current_pose()
 
 
             pick_pose = Pose()
@@ -127,71 +157,146 @@ if __name__ == '__main__':
             pick_pose.position.y = trans[1]
             pick_pose.position.z = -0.08
 
-            group.set_pose_target(pick_pose)
-
-            constraints = moveit_commander.Constraints()
-            constraints.name = "hold rotations"
-            ocm = moveit_msgs.msg.OrientationConstraint()
-            ocm.link_name = "left_hand"
-            ocm.header.frame_id = "base"
-            ocm.orientation = pick_pose.orientation
-            ocm.absolute_x_axis_tolerance = 0.2
-            ocm.absolute_y_axis_tolerance = 0.2
-            ocm.absolute_z_axis_tolerance = 0.2
-            ocm.weight = 1.0
-            
-            constraints.orientation_constraints.append(ocm)
-            group.clear_path_constraints()
-
-            group.set_path_constraints(constraints)
-
-            group.go()
-            group.clear_path_constraints()
-            gripper.close()
+            execute_valid_plan(group_right, pick_pose)
+            gripper_right.close()
             rospy.sleep(1)
 
             # fake motion
-            print gripper.position()
+            print gripper_right.position()
 
-            if gripper.position() > gripper_position_threshold:
+            if gripper_right.position() > gripper_position_threshold:
                 
                 if drop_lemon:
-                    initial_pose = group.get_current_pose()
+                    initial_pose = group_right.get_current_pose()
 
-                    lift_pose = group.get_current_pose()
+                    lift_pose = group_right.get_current_pose()
                     lift_pose.pose.position.z += 0.40
-                    group.set_pose_target(lift_pose)
-                    group.go()
+                    execute_valid_plan(group_right, lift_pose)
 
-                    drop_pose = group.get_current_pose()
+                    drop_pose = group_right.get_current_pose()
                     drop_pose.pose.position.x = 0.76
                     drop_pose.pose.position.y = -0.05
-                    group.set_pose_target(drop_pose)
-                    group.go()
-                    gripper.open()
+                    execute_valid_plan(group_right, drop_pose)
+                    gripper_right.open()
                     rospy.sleep(1)
 
-                    group.set_pose_target(lift_pose)
-                    group.go()
+                    execute_valid_plan(group_right, lift_pose)
                 else:
-                    initial_pose = group.get_current_pose()
+                    initial_pose = group_right.get_current_pose()
 
-                    lift_pose = group.get_current_pose()
+                    lift_pose = group_right.get_current_pose()
                     lift_pose.pose.position.z += 0.06
-                    group.set_pose_target(lift_pose)
-                    group.go()
+                    execute_valid_plan(group_right, lift_pose)
 
-                    group.set_pose_target(initial_pose)
-                    group.go()
-                    gripper.open()
+                    execute_valid_plan(group_right, initial_pose)
+                    gripper_right.open()
                     rospy.sleep(1)
 
 
             else:
-                gripper.open()
+                gripper_right.open()
                 rospy.sleep(1)
 
     rospy.loginfo("No circle detection")
+
+    if place_cup:
+        # step 1
+        pose1 = Pose()
+        pose1.position.x = 0.551
+        pose1.position.y = 0.565
+        pose1.position.z = -0.0728
+        pose1.orientation.x = -0.0140
+        pose1.orientation.y = 0.866
+        pose1.orientation.z = -0.0272
+        pose1.orientation.w = 0.499
+
+        execute_valid_plan(group_left, pose1)
+
+        # step 2
+
+        rospy.sleep(1)
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.x+= 0.15
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+        gripper_left.close()
+
+        # step 3
+        rospy.sleep(1)
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.x-= 0.10
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+
+        rospy.sleep(1)
+
+        # step 4
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.z+= 0.3
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+
+        # step 5
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.y-= 0.5
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+
+        # step 6
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.z-= 0.3
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+
+        # step 7
+
+        rospy.sleep(1)
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.x+= 0.08
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+        gripper_left.open()
+
+        # step 8
+
+        rospy.sleep(1)
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.y-= 0.01
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.x-= 0.08
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+
+        # step 9
+
+        pose2 = group_left.get_current_pose()
+        pose2.pose.position.z+= 0.3
+        plan = plan_with_orientation_lock(group_left, pose2)
+        group_left.execute(plan)
+
+        # step 10
+
+        # pose2 = group_left.get_current_pose()
+        # pose2.pose.position.y+= 0.5
+        # plan = plan_with_orientation_lock(group_left, pose2)
+        # group_left.execute(plan)
+
+        # # step 11
+
+        # pose2 = group_left.get_current_pose()
+        # pose2.pose.position.z-= 0.3
+        # plan = plan_with_orientation_lock(group_left, pose2)
+        # group_left.execute(plan)
 
     if press_faucet:
         # press faucet
@@ -215,8 +320,8 @@ if __name__ == '__main__':
                  -0.016106798254394532]
                 
         }
-        group.set_joint_value_target(joint_states['observe_l'])
-        group.go()
+        group_left.set_joint_value_target(joint_states['observe_l'])
+        group_left.go()
 
         # move to the pose above the faucet
         faucet_pose = Pose()
@@ -224,25 +329,24 @@ if __name__ == '__main__':
         faucet_pose.orientation.y = 0.517
         faucet_pose.orientation.z = -0.517
         faucet_pose.orientation.w = 0.476
-        faucet_pose.position.x = 0.69
-        faucet_pose.position.y = 0.10
+        faucet_pose.position.x = 0.68
+        faucet_pose.position.y = 0.07
         faucet_pose.position.z = 0.144
-        group.set_pose_target(faucet_pose)
-        group.go()
+        execute_valid_plan(group_left, faucet_pose)
 
 
         # press down the faucet
-        press_pose = group.get_current_pose()
-        press_pose.pose.position.z -= 0.06
-        group.set_pose_target(press_pose)
-        group.go()
+        press_pose = group_left.get_current_pose()
+        press_pose.pose.position.z -= 0.05
+        plan = plan_with_orientation_lock(group_left, press_pose)
+        group_left.execute(plan)
         rospy.sleep(5)
-        release_pose = group.get_current_pose()
-        release_pose.pose.position.z += 0.1
-        group.set_pose_target(release_pose)
-        group.go()
+        release_pose = group_left.get_current_pose()
+        release_pose.pose.position.z += 0.2
+        plan = plan_with_orientation_lock(group_left, release_pose)
+        group_left.execute(plan)
 
-        group.set_joint_value_target(joint_states['observe_l'])
-        group.go()
+        group_left.set_joint_value_target(joint_states['observe_l'])
+        group_left.go()
 
 
