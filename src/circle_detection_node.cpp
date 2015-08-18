@@ -30,10 +30,10 @@ namespace
     const std::string usage = "Usage : tutorial_HoughCircle_Demo <path_to_input_image>\n";
 
     // initial and max values of the parameters of interests.
-    const int cannyThresholdInitialValue = 90;
-    const int accumulatorThresholdInitialValue = 41;
-    const int radiusThresholdInitialValue = 38;
-    const int heightInitialValue = 33;
+    const int cannyThresholdInitialValue = 133; // for table 90
+    const int accumulatorThresholdInitialValue = 41; // for table 41
+    const int radiusThresholdInitialValue = 45; // for table 38
+    const int heightInitialValue = 26; // for table 33
     const int maxAccumulatorThreshold = 200;
     const int maxCannyThreshold = 255;
     const int maxRadiusThreshold = 100;
@@ -86,7 +86,7 @@ namespace
       tf::Quaternion q;
       q.setRPY(0, 0, 0);
       transform.setRotation(q);
-      br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "right_hand_camera", "circle"));
+      br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "left_hand_camera", "circle"));
     }
     
 
@@ -140,8 +140,8 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
       // offset ajustment for the distance between gripper center and camera center
       double left_offset = 0.01;
       double right_offset = 0.03;
-      // publishTF(p(0) - left_offset , p(1), p(2));
-      publishTF(p(0) - right_offset, p(1), p(2));
+      publishTF(p(0) - left_offset , p(1), p(2));
+      // publishTF(p(0) - right_offset, p(1), p(2));
     }
 
     // display the center of the image
@@ -224,7 +224,7 @@ int main(int argc, char** argv)
     createTrackbar("Camera Height", windowName, &height, 100);
 
     // subscribe to the image topic
-    ros::Subscriber sub = nh.subscribe("/cameras/right_hand_camera/image", 1, imageCallback);
+    ros::Subscriber sub = nh.subscribe("/cameras/left_hand_camera/image", 1, imageCallback);
 
     // marker publisher
     vis_pub = nh.advertise<visualization_msgs::Marker>( "detected_circles", 0 );
