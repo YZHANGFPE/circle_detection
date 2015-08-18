@@ -9,9 +9,11 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from baxter_interface import Gripper
 from itertools import izip
 
-def get_pose_with_sleep(group, delay = 0.1):
+def get_pose_with_sleep(group, delay = 0.5):
     rospy.sleep(delay)
-    return group.get_current_pose()
+    pose = group.get_current_pose()
+    print pose
+    return pose
 
 def plan_validate(plan, threshold = 0.2):        
     points = plan.joint_trajectory.points
@@ -23,22 +25,22 @@ def plan_validate(plan, threshold = 0.2):
     rospy.loginfo('Plan scored %s for discontinuity' % score)
     return False if score > threshold else True
 
-def plan_with_orientation_lock(group, target_pose, side = "left", threshold = 0.1):
+def plan_with_orientation_lock(group, target_pose, side = "left", threshold = 0.1, tolerance = 0.2):
 
     current_pose = get_pose_with_sleep(group)
     constraints = moveit_commander.Constraints()
     constraints.name = "hold rotations"
     ocm = moveit_msgs.msg.OrientationConstraint()
     if side == "left":
-        ocm.link_name = "left_hand"
+        ocm.link_name = "left_gripper"
     else:
         ocm.link_name = "right_hand"
 
     ocm.header.frame_id = "base"
     ocm.orientation = current_pose.pose.orientation
-    ocm.absolute_x_axis_tolerance = 0.2
-    ocm.absolute_y_axis_tolerance = 0.2
-    ocm.absolute_z_axis_tolerance = 0.2
+    ocm.absolute_x_axis_tolerance = tolerance
+    ocm.absolute_y_axis_tolerance = tolerance
+    ocm.absolute_z_axis_tolerance = tolerance
     ocm.weight = 1.0
     
     constraints.orientation_constraints.append(ocm)
@@ -86,9 +88,9 @@ if __name__ == '__main__':
 
     # parameters
     no_detection = False
-    drop_lemon = True
-    press_faucet = True
-    place_cup = True
+    drop_lemon = False
+    press_faucet = False
+    place_cup = False
     gripper_position_threshold = 4.6
 
     # clean the scene
@@ -99,12 +101,20 @@ if __name__ == '__main__':
 
         # initial pose
         initial_pose = Pose()
-        initial_pose.orientation.y = 1.0
-        initial_pose.position.x = 0.5
-        initial_pose.position.y = -0.68
-        initial_pose.position.z = 0.144
+        # initial_pose.orientation.x = 0.9495
+        # initial_pose.orientation.y = 0.017127
+        # initial_pose.orientation.z = -0.31322
+        # initial_pose.orientation.w = 0.0071202
+        initial_pose.orientation.x = 0.37
+        initial_pose.orientation.y = 0.93
+        initial_pose.orientation.z = 0.0
+        initial_pose.orientation.w = 0.0
+        # initial_pose.orientation.y = 1.0
+        initial_pose.position.x = 0.2
+        initial_pose.position.y = 0.88
+        initial_pose.position.z = 0.214 
 
-        execute_valid_plan(group_right, initial_pose)
+        execute_valid_plan(group_left, initial_pose)
 
         rospy.loginfo("Time to kill the process")
 
@@ -114,6 +124,20 @@ if __name__ == '__main__':
                 no_detection = True
                 press_faucet = False
                 break
+
+        while not rospy.is_shutdown():
+            pick_pose = get_pose_with_sleep(group_left)
+            if(pick_pose.pose.orientation.x > 0 and pick_pose.pose.orientation.y > 0): 
+                group_left.set_start_state_to_current_state()
+                break
+
+        # pick_pose.pose.position.x = trans[0]
+        # pick_pose.pose.position.y = trans[1]
+        pick_pose.pose.position.z = -0.02 # -0.08 for the table
+        plan = plan_with_orientation_lock(group_left, pick_pose, side = "left", tolerance=1000)
+        group_left.execute(plan)
+
+        continue
 
         rospy.loginfo("Looking for the detected pose")
 
@@ -143,76 +167,75 @@ if __name__ == '__main__':
             rospy.loginfo(trans)
 
             # move to the position that is above the lime
-            above_pose = get_pose_with_sleep(group_right)
+            above_pose = get_pose_with_sleep(group_left)
             above_pose.pose.position.x = trans[0]
             above_pose.pose.position.y = trans[1]
-            above_pose.pose.position.z = 0.144
-            plan = plan_with_orientation_lock(group_right, above_pose, side = "right")
-            group_right.execute(plan)
-            # execute_valid_plan(group_right, above_pose)
+            # above_pose.pose.position.z = 0.144 
 
+            #plan = plan_with_orientation_lock(group_left, above_pose, side = "left", tolerance=1000)
+            #group_left.execute(plan)
+            execute_valid_plan(group_left, above_pose)
 
             # set the orientation constraint during the approach
 
-            above_pose = get_pose_with_sleep(group_right)
-
-
-            pick_pose = get_pose_with_sleep(group_right)
-            pick_pose.pose.position.x = trans[0]
-            pick_pose.pose.position.y = trans[1]
-            pick_pose.pose.position.z = -0.08
-            plan = plan_with_orientation_lock(group_right, pick_pose, side = "right")
-            group_right.execute(plan)
-            # execute_valid_plan(group_right, pick_pose)
-            gripper_right.close()
+            pick_pose = get_pose_with_sleep(group_left)
+            # pick_pose.pose.position.x = trans[0]
+            # pick_pose.pose.position.y = trans[1]
+            pick_pose.pose.position.z = -0.02 # -0.08 for the table
+            plan = plan_with_orientation_lock(group_left, pick_pose, side = "left", tolerance=1000)
+            group_left.execute(plan)
+            # execute_valid_plan(group_left, pick_pose)
+            # gripper_left.close()
             rospy.sleep(1)
 
             
-            print gripper_right.position()
+            print gripper_left.position()
 
-            if gripper_right.position() > gripper_position_threshold:
+            if gripper_left.position() > 0: #gripper_position_threshold:
                 
                 if drop_lemon:
-                    initial_pose = get_pose_with_sleep(group_right)
+                    initial_pose = get_pose_with_sleep(group_left)
 
-                    lift_pose = get_pose_with_sleep(group_right)
+                    lift_pose = get_pose_with_sleep(group_left)
                     lift_pose.pose.position.z += 0.40
-                    plan = plan_with_orientation_lock(group_right, lift_pose, side = "right")
-                    group_right.execute(plan)
+                    plan = plan_with_orientation_lock(group_left, lift_pose, side = "left")
+                    group_left.execute(plan)
                     #execute_valid_plan(group_right, lift_pose)
 
-                    drop_pose = get_pose_with_sleep(group_right)
+                    drop_pose = get_pose_with_sleep(group_left)
                     drop_pose.pose.position.x = 0.76
-                    drop_pose.pose.position.y = -0.08
-                    plan = plan_with_orientation_lock(group_right, drop_pose, side = "right", threshold= 1)
-                    group_right.execute(plan)
-                    #execute_valid_plan(group_right, drop_pose)
-                    gripper_right.open()
+                    drop_pose.pose.position.y = -0.08 
+                    # plan = plan_with_orientation_lock(group_left, drop_pose, side = "left", threshold= 1)
+                    # group_left.execute(plan)
+                    execute_valid_plan(group_left, drop_pose)
+                    gripper_left.open()
                     rospy.sleep(1)
 
-                    lift_pose2 = get_pose_with_sleep(group_right)
+                    lift_pose2 = get_pose_with_sleep(group_left)
                     lift_pose2.pose.position.x = lift_pose.pose.position.x
                     lift_pose2.pose.position.y = lift_pose.pose.position.y
                     lift_pose2.pose.position.z = lift_pose.pose.position.z
-                    plan = plan_with_orientation_lock(group_right, lift_pose2, side = "right", threshold= 1)
-                    group_right.execute(plan)
-                    # execute_valid_plan(group_right, lift_pose)
+                    #plan = plan_with_orientation_lock(group_left, lift_pose2, side = "left", threshold= 1)
+                    #group_left.execute(plan)
+                    execute_valid_plan(group_left, lift_pose)
 
                     # fake motion
                 else:
-                    initial_pose = get_pose_with_sleep(group_right)
+                    initial_pose = get_pose_with_sleep(group_left)
 
-                    lift_pose = get_pose_with_sleep(group_right)
+                    lift_pose = get_pose_with_sleep(group_left)
                     lift_pose.pose.position.z += 0.06
-                    execute_valid_plan(group_right, lift_pose)
+                    # execute_valid_plan(group_left, lift_pose)
+                    plan = plan_with_orientation_lock(group_left, lift_pose, side = "left")
+                    group_left.execute(plan)
 
-                    execute_valid_plan(group_right, initial_pose)
-                    gripper_right.open()
+                    execute_valid_plan(group_left, initial_pose)
+                    gripper_left.open()
                     rospy.sleep(1)
 
 
             else:
-                gripper_right.open()
+                gripper_left.open()
                 rospy.sleep(1)
 
     rospy.loginfo("No circle detection")
