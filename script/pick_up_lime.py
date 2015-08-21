@@ -200,7 +200,7 @@ def put(object, count):
             pick_pose = get_pose_with_sleep(group_left)
             # pick_pose.pose.position.x = trans[0]
             # pick_pose.pose.position.y = trans[1]
-            pick_pose.pose.position.z = -0.02 # -0.08 for the table
+            pick_pose.pose.position.z = -0.025 # -0.08 for the table
             #plan = plan_with_orientation_lock(group_left, pick_pose, side = "left", tolerance=1000)
             #group_left.execute(plan)
             execute_valid_plan(group_left, pick_pose, dx = 0.02, dy = 0.02)
