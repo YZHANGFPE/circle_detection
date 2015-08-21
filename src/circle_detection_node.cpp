@@ -30,10 +30,10 @@ namespace
     const std::string usage = "Usage : tutorial_HoughCircle_Demo <path_to_input_image>\n";
 
     // initial and max values of the parameters of interests.
-    const int cannyThresholdInitialValue = 133; // for table 90
+    const int cannyThresholdInitialValue = 255; // for table 90
     const int accumulatorThresholdInitialValue = 41; // for table 41
-    const int radiusThresholdInitialValue = 45; // for table 38
-    const int heightInitialValue = 26; // for table 33
+    const int radiusThresholdInitialValue = 38; // for table 38
+    const int heightInitialValue = 33; // for table 33
     const int maxAccumulatorThreshold = 200;
     const int maxCannyThreshold = 255;
     const int maxRadiusThreshold = 100;
@@ -138,7 +138,7 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
       //publishMarker(p(0), p(1), p(2));
       circle( display, Point(x_min , y_min), 38, Scalar(255,0,0), 3, 8, 0 );
       // offset ajustment for the distance between gripper center and camera center
-      double left_offset = 0.01;
+      double left_offset = 0.00;
       double right_offset = 0.03;
       publishTF(p(0) - left_offset , p(1), p(2));
       // publishTF(p(0) - right_offset, p(1), p(2));
