@@ -30,14 +30,20 @@ namespace
     const std::string usage = "Usage : tutorial_HoughCircle_Demo <path_to_input_image>\n";
 
     // initial and max values of the parameters of interests.
-    const int cannyThresholdInitialValue = 255; // for table 90
+    const int cannyThresholdInitialValue = 50; // for table 90
     const int accumulatorThresholdInitialValue = 41; // for table 41
     const int radiusThresholdInitialValue = 38; // for table 38
     const int heightInitialValue = 33; // for table 33
+    const int intensityInitialValue = 100;
     const int maxAccumulatorThreshold = 200;
     const int maxCannyThreshold = 255;
     const int maxRadiusThreshold = 100;
     const int minRadiusThreshold = 20;
+    const int maxIntensityThreshold = 255;
+    const int minIntensityThreshold = 0;
+
+    // path of the package
+    const std::string path = ".";
 
 
     // declare and initialize both parameters that are subjects to change
@@ -45,6 +51,7 @@ namespace
     int accumulatorThreshold = accumulatorThresholdInitialValue;
     int radiusThreshold = radiusThresholdInitialValue;
     int height = heightInitialValue;
+    int intenstiyThreshold = intensityInitialValue;
 
     // calibratioin matrix
     MatrixXd m(4,3);
@@ -79,18 +86,69 @@ namespace
 
     }
 
-    void publishTF(double x, double y, double z){
+    void publishTF(double x, double y, double z, std::string tf_target){
       static tf::TransformBroadcaster br;
       tf::Transform transform;
       transform.setOrigin( tf::Vector3(x, y, z) );
       tf::Quaternion q;
       q.setRPY(0, 0, 0);
       transform.setRotation(q);
-      br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "left_hand_camera", "circle"));
+      br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "left_hand_camera", tf_target));
     }
     
 
     
+}
+
+void compareHistogram(Mat& test){
+    Mat hsv_test;
+    Mat src_lemon, hsv_lemon;
+    Mat src_lime, hsv_lime;
+
+    // load image
+    src_lemon = imread("./lemon.jpg");
+    src_lime = imread("./lime.jpg");
+
+    // Conver to HSV
+    cvtColor( test, hsv_test, COLOR_BGR2HSV );
+    cvtColor( src_lemon, hsv_lemon, COLOR_BGR2HSV );
+    cvtColor( src_lime, hsv_lime, COLOR_BGR2HSV );
+
+    /// Using 50 bins for hue and 60 for saturation
+    int h_bins = 50; int s_bins = 60;
+    int histSize[] = { h_bins, s_bins };
+
+    // hue varies from 0 to 179, saturation from 0 to 255
+    float h_ranges[] = { 0, 180 };
+    float s_ranges[] = { 0, 256 };
+
+    const float* ranges[] = { h_ranges, s_ranges };
+
+    // Use the o-th and 1-st channels
+    int channels[] = { 0, 1 };
+
+    /// Histograms
+    MatND hist_test;
+    MatND hist_lemon;
+    MatND hist_lime;
+
+    /// Calculate the histograms for the HSV images
+    calcHist( &hsv_test, 1, channels, Mat(), hist_test, 2, histSize, ranges, true, false );
+    normalize( hist_test, hist_test, 0, 1, NORM_MINMAX, -1, Mat() );
+
+    calcHist( &hsv_lemon, 1, channels, Mat(), hist_lemon, 2, histSize, ranges, true, false );
+    normalize( hist_lemon, hist_lemon, 0, 1, NORM_MINMAX, -1, Mat() );
+
+    calcHist( &hsv_lime, 1, channels, Mat(), hist_lime, 2, histSize, ranges, true, false );
+    normalize( hist_lime, hist_lime, 0, 1, NORM_MINMAX, -1, Mat() );
+
+    int compare_method = 0;
+
+    double test_test = compareHist( hist_test, hist_test, compare_method );
+    double test_lemon = compareHist( hist_test, hist_lemon, compare_method );
+    double test_lime = compareHist( hist_test, hist_lime, compare_method );
+
+    ROS_INFO( " Method 0 Perfect, test_test, test_lemon, test_lime : %f, %f, %f \n",  test_test, test_lemon , test_lime);
 }
 
 void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThreshold, int accumulatorThreshold, int radiusThreshold){
@@ -102,9 +160,12 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
     // clone the colour, input image for displaying purposes
     Mat display = src_display.clone();
 
-    int x_min = 1000;
-    int y_min = 1000;
-    int d_min = 2000;
+    int x_min_lemon = 1000;
+    int y_min_lemon = 1000;
+    int d_min_lemon = 2000;
+    int x_min_lime = 1000;
+    int y_min_lime = 1000;
+    int d_min_lime = 2000;
 
     for( size_t i = 0; i < circles.size(); i++ )
     {
@@ -112,40 +173,93 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
         int radius = cvRound(circles[i][2]);
         
         if (radius < radiusThreshold  && radius > radiusThreshold-8){
-          // circle center
-          circle( display, center, 3, Scalar(0,255,0), -1, 8, 0 );
-          // circle outline
-          circle( display, center, radius, Scalar(0,0,255), 3, 8, 0 );
-          // update the pick candidate with the min distance circle
-          int d = abs(circles[i][0] - 320) + abs(circles[i][1] - 200);
-          if( d < d_min){
-            d_min = d;
-            x_min = circles[i][0];
-            y_min = circles[i][1];
-          }
+
+          int intensity = src_gray.at<uchar>(circles[i][1], circles[i][0] );
+          ROS_INFO("intensity is: %d", intensity);
+          // lemon case
+          if(intensity > intenstiyThreshold){
+              // circle center
+              circle( display, center, 3, Scalar(0,255,0), -1, 8, 0 );
+              // circle outline
+              circle( display, center, radius, Scalar(0,0,255), 3, 8, 0 );
+              // update the pick candidate with the min distance circle
+              int d = abs(circles[i][0] - 320) + abs(circles[i][1] - 200);
+              if( d < d_min_lemon){
+                d_min_lemon = d;
+                x_min_lemon = circles[i][0];
+                y_min_lemon = circles[i][1];
+              }
+          }else{ // lime case
+              // circle center
+              circle( display, center, 3, Scalar(0,255,0), -1, 8, 0 );
+              // circle outline
+              circle( display, center, radius, Scalar(0,255,0), 3, 8, 0 );
+              // update the pick candidate with the min distance circle
+              int d = abs(circles[i][0] - 320) + abs(circles[i][1] - 200);
+              if( d < d_min_lime){
+                d_min_lime = d;
+                x_min_lime = circles[i][0];
+                y_min_lime = circles[i][1];
+              }
           
+          }
         }
+          
     }
 
     // find the 3d position for the pick candidate
+
+    // create a mask
+    Mat mask = Mat::zeros(400, 640, CV_8U); // all 0
     
-    if( d_min < 2000){
+    // lemon tf 
+    if( d_min_lemon < 2000){
       w = (double)height / 100.0;
-      v(0) = cvRound(x_min)*w;
-      v(1) = cvRound(y_min)*w;
+      v(0) = cvRound(x_min_lemon)*w;
+      v(1) = cvRound(y_min_lemon)*w;
       v(2) = w;
       VectorXd p = m * v;
       //publishMarker(p(0), p(1), p(2));
-      circle( display, Point(x_min , y_min), 38, Scalar(255,0,0), 3, 8, 0 );
+      // circle( display, Point(x_min_lemon , y_min_lemon), 38, Scalar(255,0,0), 3, 8, 0 );
+
+      // draw circle on the mask
+      // circle( mask, Point(x_min_lemon , y_min_lemon), 30, Scalar(255, 255, 255), -1, 8, 0 );
+
       // offset ajustment for the distance between gripper center and camera center
       double left_offset = 0.00;
       double right_offset = 0.03;
-      publishTF(p(0) - left_offset , p(1), p(2));
+      publishTF(p(0) - left_offset , p(1), p(2), "lemon");
+      // publishTF(p(0) - right_offset, p(1), p(2));
+    }
+
+    // lime tf
+
+    if( d_min_lime < 2000){
+      w = (double)height / 100.0;
+      v(0) = cvRound(x_min_lime)*w;
+      v(1) = cvRound(y_min_lime)*w;
+      v(2) = w;
+      VectorXd p = m * v;
+      //publishMarker(p(0), p(1), p(2));
+      // circle( display, Point(x_min_lime , y_min_lime), 38, Scalar(255,0,0), 3, 8, 0 );
+
+      // draw circle on the mask
+      // circle( mask, Point(x_min_lime , y_min_lime), 30, Scalar(255, 255, 255), -1, 8, 0 );
+
+      // offset ajustment for the distance between gripper center and camera center
+      double left_offset = 0.00;
+      double right_offset = 0.03;
+      publishTF(p(0) - left_offset , p(1), p(2), "lime");
       // publishTF(p(0) - right_offset, p(1), p(2));
     }
 
     // display the center of the image
     // circle( display, Point(320, 200), 3, Scalar(255,0,0), -1, 8, 0 );
+    
+    
+    Mat res;
+    src_display.copyTo(res, mask);
+    // compareHistogram(res);
 
     // shows the results
     imshow( windowName, display);
@@ -222,6 +336,7 @@ int main(int argc, char** argv)
     createTrackbar(accumulatorThresholdTrackbarName, windowName, &accumulatorThreshold, maxAccumulatorThreshold);
     createTrackbar(radiusThresholdTrackbarName, windowName, &radiusThreshold, maxRadiusThreshold);
     createTrackbar("Camera Height", windowName, &height, 100);
+    createTrackbar("Intensity Threshold", windowName, &intenstiyThreshold, 255);
 
     // subscribe to the image topic
     ros::Subscriber sub = nh.subscribe("/cameras/left_hand_camera/image", 1, imageCallback);

@@ -112,6 +112,7 @@ include_directories(
 ## Declare a cpp executable
 # add_executable(circle_detection_node src/circle_detection_node.cpp)
 add_executable(circle_detection_node src/circle_detection_node.cpp)
+add_executable(save_sample src/save_sample.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -123,6 +124,7 @@ add_executable(circle_detection_node src/circle_detection_node.cpp)
 # )
 
 target_link_libraries( circle_detection_node ${OpenCV_LIBS} ${catkin_LIBRARIES} )
+target_link_libraries( save_sample ${OpenCV_LIBS} ${catkin_LIBRARIES} )
 
 #############
 ## Install ##
