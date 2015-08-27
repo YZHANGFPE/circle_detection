@@ -12,6 +12,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <std_msgs/String.h>
 #include <sensor_msgs/image_encodings.h>
 #include <visualization_msgs/Marker.h>
 #include <tf/transform_broadcaster.h>
@@ -44,6 +45,9 @@ namespace
 
     // path of the package
     const std::string path = ".";
+
+    // whether process
+    bool process_bool = false;
 
 
     // declare and initialize both parameters that are subjects to change
@@ -299,10 +303,22 @@ void imageCallback(const sensor_msgs::Image& msgs_image) {
   accumulatorThreshold = std::max(accumulatorThreshold, 1);
 
   //runs the detection, and update the display
-  HoughDetection(src_gray, src, cannyThreshold, accumulatorThreshold, radiusThreshold);
+  if (process_bool) HoughDetection(src_gray, src, cannyThreshold, accumulatorThreshold, radiusThreshold);
+  else imshow( windowName, src);
 
   cv::waitKey(10);
 
+}
+
+void processCallback(const std_msgs::String::ConstPtr& msg){
+  if( std::strcmp(msg->data.c_str(),"start")==0 ){
+    process_bool = true;
+    ROS_INFO("circle detection starts");
+  }
+  if(std::strcmp(msg->data.c_str(),"stop")==0){
+    process_bool = false;
+    ROS_INFO("circle detection stops");
+  }
 }
 
 
@@ -340,6 +356,8 @@ int main(int argc, char** argv)
 
     // subscribe to the image topic
     ros::Subscriber sub = nh.subscribe("/cameras/left_hand_camera/image", 1, imageCallback);
+    // subscribe to process command
+    ros::Subscriber sub_process = nh.subscribe("circle_detection_process", 1, processCallback);
 
     // marker publisher
     vis_pub = nh.advertise<visualization_msgs::Marker>( "detected_circles", 0 );
