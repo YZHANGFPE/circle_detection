@@ -33,9 +33,9 @@ namespace
     // initial and max values of the parameters of interests.
     const int cannyThresholdInitialValue = 50; // for table 90
     const int accumulatorThresholdInitialValue = 41; // for table 41
-    const int radiusThresholdInitialValue = 38; // for table 38
-    const int heightInitialValue = 33; // for table 33
-    const int intensityInitialValue = 100;
+    const int radiusThresholdInitialValue = 34; // for table 38
+    const int heightInitialValue = 34; // for table 33
+    const int intensityInitialValue = 80;
     const int maxAccumulatorThreshold = 200;
     const int maxCannyThreshold = 255;
     const int maxRadiusThreshold = 100;
@@ -155,7 +155,7 @@ void compareHistogram(Mat& test){
     ROS_INFO( " Method 0 Perfect, test_test, test_lemon, test_lime : %f, %f, %f \n",  test_test, test_lemon , test_lime);
 }
 
-void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThreshold, int accumulatorThreshold, int radiusThreshold){
+Mat HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThreshold, int accumulatorThreshold, int radiusThreshold){
     // will hold the results of the detection
     std::vector<Vec3f> circles;
     // runs the actual detection
@@ -267,6 +267,7 @@ void HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresh
 
     // shows the results
     imshow( windowName, display);
+    return display;
 }
 
 
@@ -303,10 +304,25 @@ void imageCallback(const sensor_msgs::Image& msgs_image) {
   accumulatorThreshold = std::max(accumulatorThreshold, 1);
 
   //runs the detection, and update the display
-  if (process_bool) HoughDetection(src_gray, src, cannyThreshold, accumulatorThreshold, radiusThreshold);
-  else imshow( windowName, src);
+  Mat res;
+  if (process_bool) res = HoughDetection(src_gray, src, cannyThreshold, accumulatorThreshold, radiusThreshold);
+  else{
+    res = src;
+    imshow( windowName, src);
+  }
 
   cv::waitKey(10);
+
+  // publish the processed image
+
+  sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", res).toImageMsg();
+
+  ros::Rate loop_rate(5);
+  vis_pub.publish(msg);
+/*  ros::spinOnce();
+  loop_rate.sleep();*/
+
+  
 
 }
 
@@ -360,7 +376,7 @@ int main(int argc, char** argv)
     ros::Subscriber sub_process = nh.subscribe("circle_detection_process", 1, processCallback);
 
     // marker publisher
-    vis_pub = nh.advertise<visualization_msgs::Marker>( "detected_circles", 0 );
+    vis_pub = nh.advertise<sensor_msgs::Image>( "rvs_lemon_detection", 0 );
 
     
 
