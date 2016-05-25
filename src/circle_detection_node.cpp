@@ -187,6 +187,7 @@ Mat HoughDetection(const Mat& src_gray, const Mat& src_display, int cannyThresho
               // circle outline
               circle( display, center, radius, Scalar(0,0,255), 3, 8, 0 );
               // update the pick candidate with the min distance circle
+              // 320 and 200 are the offset pixel obtained in the camera calibration info
               int d = abs(circles[i][0] - 320) + abs(circles[i][1] - 200);
               if( d < d_min_lemon){
                 d_min_lemon = d;
@@ -347,6 +348,38 @@ int main(int argc, char** argv)
     // matrix calculation
 
     double xp = 100, yp = 200;
+    /*
+     rostopic echo -n 1 /cameras/left_hand_camera/camera_info
+     
+     header: 
+       seq: 5759
+       stamp: 
+         secs: 1464196158
+         nsecs: 882176000
+       frame_id: /left_hand_camera
+     height: 400
+     width: 640
+     distortion_model: plumb_bob
+     D: [0.0116776045518, -0.0407996905853, -0.00110308187907, -5.38190873443e-05, 0.00866092069293]
+     K: [408.161937671, 0.0, 635.869964945, 0.0, 408.161937671, 384.06204543, 0.0, 0.0, 1.0]
+     R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+     P: [408.161937671, 0.0, 315.869964945, 0.0, 0.0, 408.161937671, 184.06204543, 0.0, 0.0, 0.0, 1.0, 0.0]
+     binning_x: 1
+     binning_y: 1
+     roi: 
+       x_offset: 320
+       y_offset: 200
+       height: 400
+       width: 640
+       do_rectify: False
+     ---
+
+
+     import numpy as np
+     a = np.asarray([[408.161937671, 0.0, 315.869964945, 0.0, 0.0, 408.161937671, 184.06204543, 0.0, 0.0, 0.0, 1.0, 0.0]])
+     b = a.reshape((3,4))
+     m = np.linalg.pinv(b)
+    */
     //Vector3d v(xp*w,yp*w,w);
     m(0,0) = 2.45000797e-03;
     m(0,1) = -1.35525272e-18;
